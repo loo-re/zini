@@ -1,0 +1,17 @@
+.{
+    .name = .zini,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.14.0",
+    .fingerprint = 0xadd0f09e76c78f58,
+    .paths = .{
+        "examples",
+        "src",
+        "txt",
+        "build.zig",
+        "build.zig.zon",
+        "doc.md",
+        "LICENSE",
+        "LICENSE-COMMERCIAL",
+        "README.md",
+    },
+}
