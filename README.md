@@ -246,10 +246,10 @@ The parser supports the following [INI format](https://en.wikipedia.org/wiki/INI
 
 ## Testing
 
-The code includes comprehensive tests in `ini_test.zig`.  To run the tests, use the command:
+The code includes comprehensive tests in `src/ini_test.zig`.  To run the tests, use the command:
 
 ```bash
-zig test ini_test.zig
+zig test src/ini_test.zig
 ```
 
 ## Dependencies

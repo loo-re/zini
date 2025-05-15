@@ -30,17 +30,17 @@ fn createParser(allocator: std.mem.Allocator) !Parser {
     };
 }
 
-fn assertSectionExists(parser: Parser, name: []const u8) bool {
+fn assertSectionExists(parser: *Parser, name: []const u8) bool {
     return parser.hasSection(name);
 }
-fn assertSubSectionExists(parser: Parser, name: []const u8, sub_section: []const u8) bool {
+fn assertSubSectionExists(parser: *Parser, name: []const u8, sub_section: []const u8) bool {
     if (parser.section(name)) |section| {
         return section.hasSection(sub_section);
     }
     return false;
 }
 
-fn getSubSectionPropertyValue(parser: Parser, section: []const u8, sub_section: []const u8, key: []const u8) ?[]const u8 {
+fn getSubSectionPropertyValue(parser: *Parser, section: []const u8, sub_section: []const u8, key: []const u8) ?[]const u8 {
     if (parser.section(section)) |s| {
         if (s.section(sub_section)) |sub| {
             return sub.getOptionalString(key);
@@ -48,14 +48,14 @@ fn getSubSectionPropertyValue(parser: Parser, section: []const u8, sub_section: 
     }
     return null;
 }
-fn assertPropertyExists(parser: Parser, section: []const u8, key: []const u8) bool {
+fn assertPropertyExists(parser: *Parser, section: []const u8, key: []const u8) bool {
     if (parser.section(section)) |s| {
         return s.has(key);
     }
     return false;
 }
 
-fn getPropertyValue(parser: Parser, section: []const u8, key: []const u8) ?[]const u8 {
+fn getPropertyValue(parser: *Parser, section: []const u8, key: []const u8) ?[]const u8 {
     if (parser.section(section)) |s| {
         return s.getOptionalString(key);
     }
@@ -148,7 +148,7 @@ test "loadFile - fichier vide" {
 
     try parser.loadFile(filename);
     try testing.expectEqual(parser.count(), 0); // Section globale vide
-    try testing.expect(assertSectionExists(parser, ""));
+    try testing.expect(assertSectionExists(&parser, ""));
 }
 
 test "loadFile - fichier avec une section et une propriété" {
@@ -165,9 +165,9 @@ test "loadFile - fichier avec une section et une propriété" {
 
     try parser.loadFile(filename);
     try testing.expectEqual(parser.count(), 1);
-    try testing.expect(assertSectionExists(parser, "section1"));
-    try testing.expect(assertPropertyExists(parser, "section1", "key1"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "section1", "key1").?, "value1");
+    try testing.expect(assertSectionExists(&parser, "section1"));
+    try testing.expect(assertPropertyExists(&parser, "section1", "key1"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "section1", "key1").?, "value1");
 }
 
 test "loadFile - fichier avec plusieurs sections et propriétés" {
@@ -184,12 +184,12 @@ test "loadFile - fichier avec plusieurs sections et propriétés" {
 
     try parser.loadFile(filename);
     try testing.expectEqual(parser.count(), 2);
-    try testing.expect(assertSectionExists(parser, "sectionA"));
-    try testing.expect(assertPropertyExists(parser, "sectionA", "keyA1"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "sectionA", "keyA1").?, "valueA1");
-    try testing.expect(assertSectionExists(parser, "sectionB"));
-    try testing.expect(assertPropertyExists(parser, "sectionB", "keyB1"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "sectionB", "keyB1").?, "valueB1");
+    try testing.expect(assertSectionExists(&parser, "sectionA"));
+    try testing.expect(assertPropertyExists(&parser, "sectionA", "keyA1"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "sectionA", "keyA1").?, "valueA1");
+    try testing.expect(assertSectionExists(&parser, "sectionB"));
+    try testing.expect(assertPropertyExists(&parser, "sectionB", "keyB1"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "sectionB", "keyB1").?, "valueB1");
 }
 
 test "loadFile - fichier avec sous sections et propriétés" {
@@ -206,12 +206,12 @@ test "loadFile - fichier avec sous sections et propriétés" {
 
     try parser.loadFile(filename);
     try testing.expectEqual(parser.count(), 1);
-    try testing.expect(assertSectionExists(parser, "section A"));
-    try testing.expect(assertSubSectionExists(parser, "section", "A"));
-    try testing.expectEqualStrings(getSubSectionPropertyValue(parser, "section", "A", "keyA1").?, "valueA1");
-    try testing.expect(assertSectionExists(parser, "section B"));
-    try testing.expect(assertPropertyExists(parser, "section B", "keyB1"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "section B", "keyB1").?, "valueB1");
+    try testing.expect(assertSectionExists(&parser, "section A"));
+    try testing.expect(assertSubSectionExists(&parser, "section", "A"));
+    try testing.expectEqualStrings(getSubSectionPropertyValue(&parser, "section", "A", "keyA1").?, "valueA1");
+    try testing.expect(assertSectionExists(&parser, "section B"));
+    try testing.expect(assertPropertyExists(&parser, "section B", "keyB1"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "section B", "keyB1").?, "valueB1");
 }
 
 test "loadFile - fichier avec commentaires" {
@@ -228,9 +228,9 @@ test "loadFile - fichier avec commentaires" {
 
     try parser.loadFile(filename);
     try testing.expectEqual(parser.count(), 1);
-    try testing.expect(assertSectionExists(parser, "section2"));
-    try testing.expect(assertPropertyExists(parser, "section2", "key2"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "section2", "key2").?, "value2");
+    try testing.expect(assertSectionExists(&parser, "section2"));
+    try testing.expect(assertPropertyExists(&parser, "section2", "key2"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "section2", "key2").?, "value2");
 }
 
 test "loadFile - fichier avec propriétés dans la section globale" {
@@ -247,11 +247,11 @@ test "loadFile - fichier avec propriétés dans la section globale" {
 
     try parser.loadFile(filename);
     try testing.expectEqual(parser.count(), 1);
-    try testing.expect(assertPropertyExists(parser, "", "global_key"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "", "global_key").?, "global_value");
-    try testing.expect(assertSectionExists(parser, "section3"));
-    try testing.expect(assertPropertyExists(parser, "section3", "key3"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "section3", "key3").?, "value3");
+    try testing.expect(assertPropertyExists(&parser, "", "global_key"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "", "global_key").?, "global_value");
+    try testing.expect(assertSectionExists(&parser, "section3"));
+    try testing.expect(assertPropertyExists(&parser, "section3", "key3"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "section3", "key3").?, "value3");
 }
 
 test "loadFile - fichier avec des espaces autour des clés et des valeurs" {
@@ -267,8 +267,8 @@ test "loadFile - fichier avec des espaces autour des clés et des valeurs" {
     defer std.fs.cwd().deleteFile(filename) catch {};
 
     try parser.loadFile(filename);
-    try testing.expect(assertPropertyExists(parser, "section4", "key4"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "section4", "key4").?, "value 4");
+    try testing.expect(assertPropertyExists(&parser, "section4", "key4"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "section4", "key4").?, "value 4");
 }
 
 test "loadFile - fichier avec des guillemets autour des valeurs" {
@@ -284,8 +284,8 @@ test "loadFile - fichier avec des guillemets autour des valeurs" {
     defer std.fs.cwd().deleteFile(filename) catch {};
 
     try parser.loadFile(filename);
-    try testing.expect(assertPropertyExists(parser, "section5", "key5"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "section5", "key5").?, "value with spaces");
+    try testing.expect(assertPropertyExists(&parser, "section5", "key5"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "section5", "key5").?, "value with spaces");
 }
 
 test "loadFile - fichier avec des lignes vides" {
@@ -302,9 +302,9 @@ test "loadFile - fichier avec des lignes vides" {
 
     try parser.loadFile(filename);
     try testing.expectEqual(parser.count(), 1);
-    try testing.expect(assertSectionExists(parser, "section6"));
-    try testing.expect(assertPropertyExists(parser, "section6", "key6"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "section6", "key6").?, "value6");
+    try testing.expect(assertSectionExists(&parser, "section6"));
+    try testing.expect(assertPropertyExists(&parser, "section6", "key6"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "section6", "key6").?, "value6");
 }
 
 test "loadFile - fichier avec une erreur de format (ligne invalide)" {
@@ -350,11 +350,11 @@ test "loadFile - fichier avec includes" {
 
     try parser.loadFile(main_filename);
     try testing.expectEqual(parser.count(), 1);
-    try testing.expect(assertSectionExists(parser, "main_section"));
-    try testing.expect(assertPropertyExists(parser, "main_section", "main_key"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "main_section", "main_key").?, "main_value");
-    try testing.expect(assertPropertyExists(parser, "main_section", "included_key"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "main_section", "included_key").?, "included_value");
+    try testing.expect(assertSectionExists(&parser, "main_section"));
+    try testing.expect(assertPropertyExists(&parser, "main_section", "main_key"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "main_section", "main_key").?, "main_value");
+    try testing.expect(assertPropertyExists(&parser, "main_section", "included_key"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "main_section", "included_key").?, "included_value");
 }
 
 test "loadFile - fichier avec includes + echapement " {
@@ -376,11 +376,11 @@ test "loadFile - fichier avec includes + echapement " {
 
     try parser.loadFile(main_filename);
     try testing.expectEqual(parser.count(), 1);
-    try testing.expect(assertSectionExists(parser, "main_section"));
-    try testing.expect(assertPropertyExists(parser, "main_section", "main_key"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "main_section", "main_key").?, "main_value");
-    try testing.expect(assertPropertyExists(parser, "main_section", "included_key"));
-    try testing.expectEqualStrings(getPropertyValue(parser, "main_section", "included_key").?, "included_value");
+    try testing.expect(assertSectionExists(&parser, "main_section"));
+    try testing.expect(assertPropertyExists(&parser, "main_section", "main_key"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "main_section", "main_key").?, "main_value");
+    try testing.expect(assertPropertyExists(&parser, "main_section", "included_key"));
+    try testing.expectEqualStrings(getPropertyValue(&parser, "main_section", "included_key").?, "included_value");
 }
 
 test "loadText - create" {
