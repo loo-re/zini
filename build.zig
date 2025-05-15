@@ -1,14 +1,10 @@
 const std = @import("std");
 const builder = @import("build_runner");
+const VERSION = @import("./src/zini.zig").VERSION;
 
 pub fn build(b: *std.Build) !void {
-    const version = std.SemanticVersion{
-        .major = 0,
-        .minor = 1,
-        .patch = 0,
-    };
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
     const zini_mod = b.addModule("zini", .{
         .root_source_file = b.path("src/zini.zig"),
@@ -16,10 +12,12 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
+    // LIBRARY
+
     const libDyn = b.addLibrary(.{
         .name = "zini", // Produit libmon_lib.so
         .root_module = zini_mod,
-        .version = version,
+        .version = VERSION,
         .linkage = .dynamic,
     });
 
@@ -29,21 +27,24 @@ pub fn build(b: *std.Build) !void {
     const libStatic = b.addLibrary(.{
         .name = "zini", // Produit libmon_lib.so
         .root_module = zini_mod,
-        .version = version,
+        .version = VERSION,
         .linkage = .static,
     });
 
     // Pour l'installation (facultatif)
     b.installArtifact(libStatic);
 
+    // TESTS
     const test_step = b.step("test", "Run all tests in all modes.");
     const tests = b.addTest(.{ .root_module = zini_mod });
     const run_tests = b.addRunArtifact(tests);
     test_step.dependOn(&run_tests.step);
 
+    // EXAMPLES
     const example_step = b.step("examples", "Build examples");
     for ([_][]const u8{
         "example",
+        "server",
     }) |example_name| {
         const example = b.addExecutable(.{
             .name = example_name,
@@ -57,13 +58,7 @@ pub fn build(b: *std.Build) !void {
         example_step.dependOn(&install_example.step);
     }
 
-    // const docs_step = b.step("docs", "Generate docs.");
-    // const install_docs = b.addInstallDirectory(.{
-    //     .source_dir = tests.getEmittedDocs(),
-    //     .install_dir = .prefix,
-    //     .install_subdir = "docs",
-    // });
-    // docs_step.dependOn(&install_docs.step);
+    // DOCUMENTATION
 
     // Étape optionnelle de génération de documentation
     // 👇 Étape personnalisée : appel de zig build-lib -femit-docs
@@ -76,6 +71,7 @@ pub fn build(b: *std.Build) !void {
 
     b.step("docs", "Génère la documentation de la bibliothèque").dependOn(&docs_step.step);
 
+    // COMMANDE PAR DEFAUT (all)
     const all_step = b.step("all", "Build everything and runs all tests");
     all_step.dependOn(test_step);
     all_step.dependOn(example_step);

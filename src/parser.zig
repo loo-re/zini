@@ -167,7 +167,7 @@ pub const Parser = struct {
                 if (byte == '\n') {
                     const line = buffer[start..i];
                     const trimmedLine = mem.trim(u8, line, " \t");
-                    const lowerTrimmedLine = utils.lower(self.allocator, trimmedLine) catch unreachable;
+                    const lowerTrimmedLine = utils.lower(trimmedLine) catch unreachable;
                     if (mem.startsWith(u8, lowerTrimmedLine, "include ")) {
                         var content_end_index: usize = trimmedLine.len;
                         for (trimmedLine, 0..) |c, _i| {
@@ -410,7 +410,7 @@ pub const Parser = struct {
                         }
 
                         // Allocate and copy key and value
-                        key = try utils.unescapeChars(try utils.removeQuote(try utils.lower(std.heap.page_allocator, key)));
+                        key = try utils.unescapeChars(try utils.removeQuote(try utils.lower(key)));
                         const key_copy = try std.heap.page_allocator.alloc(u8, key.len);
                         std.mem.copyBackwards(u8, key_copy, key);
 
@@ -419,7 +419,7 @@ pub const Parser = struct {
 
                         const value_copy = try std.heap.page_allocator.alloc(u8, value.len);
                         std.mem.copyBackwards(u8, value_copy, value);
-
+                        // std.debug.print("ADD KEY {s} {s} {s}\n", .{ current_section_name, key_copy, value_copy });
                         try self.put(current_section_name, key_copy, value_copy);
                     } else {
                         return errors.InvalidFormat;
@@ -432,7 +432,9 @@ pub const Parser = struct {
         }
     }
 
-    pub fn section(self: *const Parser, name: []const u8) ?Section {
+    pub fn section(self: *Parser, name: []const u8) ?Section {
+        self.mutex.lock();
+        defer self.mutex.unlock();
         if (self.properties.getEntry(name)) |s| {
             if (self.links.getEntry(name)) |l| {
                 return Section.init(self, s.value_ptr, l.value_ptr, name);
@@ -454,18 +456,20 @@ pub const Parser = struct {
     }
     pub fn addSection(self: *Parser, name: []const u8) !Section {
         self.mutex.lock();
-        defer self.mutex.unlock();
-        if (!self.hasSection(name)) {
-            // Allouer et copier la clé
-            const name_copy = try std.heap.page_allocator.alloc(u8, name.len);
-            std.mem.copyBackwards(u8, name_copy, name);
+        {
+            defer self.mutex.unlock();
+            if (!self.hasSection(name)) {
+                // Allouer et copier la clé
+                const name_copy = try std.heap.page_allocator.alloc(u8, name.len);
+                std.mem.copyBackwards(u8, name_copy, name);
 
-            try self.properties.put(name_copy, std.StringHashMap([]const u8).init(self.allocator));
-            // create links
-            if (!self.links.contains(name_copy)) {
-                const link_copy = try std.heap.page_allocator.alloc(u8, name.len);
-                std.mem.copyBackwards(u8, link_copy, name);
-                try self.links.put(link_copy, std.StringHashMap([]const u8).init(self.allocator));
+                try self.properties.put(name_copy, std.StringHashMap([]const u8).init(self.allocator));
+                // create links
+                if (!self.links.contains(name_copy)) {
+                    const link_copy = try std.heap.page_allocator.alloc(u8, name.len);
+                    std.mem.copyBackwards(u8, link_copy, name);
+                    try self.links.put(link_copy, std.StringHashMap([]const u8).init(self.allocator));
+                }
             }
         }
         if (self.section(name)) |s| {

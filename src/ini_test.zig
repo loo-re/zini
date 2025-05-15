@@ -9,6 +9,12 @@ const TesttError = error{
     MissingSection,
     MissingKey,
 };
+const MyEnum = enum {
+    Yes,
+    MayBe,
+    No,
+};
+
 fn createParserWithContent(allocator: mem.Allocator, content: []const u8) !Parser {
     var parser = Parser.init(allocator) catch |err| {
         return err;
@@ -988,4 +994,207 @@ test "getOptionalFloatList - invalid entry" {
     }
     try testing.expect(list != null); //  parsing fails if null
     try testing.expectEqualSlices(f64, expected, list.?); // Returns null if any parsing fails
+}
+test "getEnum - exists" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+    const content = "key = no";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    try testing.expectEqual(MyEnum.No, parser.global().getEnum(MyEnum, "key", .Yes));
+}
+
+test "getEnum - not exists - default" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    try testing.expectEqual(MyEnum.MayBe, parser.global().getEnum(MyEnum, "key", .MayBe));
+}
+
+test "getEnum - invalid - default" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "key = abc";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    try testing.expectEqual(MyEnum.Yes, parser.global().getEnum(MyEnum, "key", .Yes));
+}
+test "getEnum - escaped entry" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "key = Y\\x0065s\n";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+    try testing.expectEqual(.Yes, parser.global().getOptionalEnum(MyEnum, "key").?); //  parsing fails if not debug
+
+}
+
+test "getOptionalEnum - exists" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "key = maybe";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    try testing.expectEqual(MyEnum.MayBe, parser.global().getOptionalEnum(MyEnum, "key").?);
+}
+
+test "getOptionalEnum - not exists" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    try testing.expectEqual(null, parser.global().getOptionalEnum(MyEnum, "key"));
+}
+
+test "getOptionalEnum - invalid" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "key = abc";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    try testing.expectEqual(null, parser.global().getOptionalEnum(MyEnum, "key"));
+}
+
+test "getOptionalEnum - escaped entry" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "key = MayB\\x0065\n";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+    try testing.expectEqual(.MayBe, parser.global().getOptionalEnum(MyEnum, "key").?); //  parsing fails if not debug
+}
+
+test "getEnumList - comma separated" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "key = no,yes,no";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    const expected: []const MyEnum = &.{ .No, .Yes, .No };
+    const list = parser.global().getEnumList(MyEnum, "key", ',', &.{});
+    defer parser.allocator.free(list);
+    try testing.expectEqualSlices(MyEnum, expected, list);
+}
+
+test "getEnumList - pipe separated" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "key = no | yes | no";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    const expected: []const MyEnum = &.{ .No, .Yes, .No };
+    const list = parser.global().getEnumList(MyEnum, "key", '|', &.{});
+    defer parser.allocator.free(list);
+    try testing.expectEqualSlices(MyEnum, expected, list);
+}
+
+test "getEnumList - not exists - default" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    const expected: []const MyEnum = &.{MyEnum.MayBe};
+    const list = parser.global().getEnumList(MyEnum, "key", ',', &.{MyEnum.MayBe});
+    defer parser.allocator.free(list);
+    try testing.expectEqualSlices(MyEnum, expected, list);
+}
+
+test "getEnumList - invalid entry" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "key = yes, abc, no";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    const expected: []const MyEnum = &.{ .Yes, .No };
+    const list = parser.global().getEnumList(MyEnum, "key", ',', &.{});
+    defer parser.allocator.free(list);
+    try testing.expectEqualSlices(MyEnum, expected, list);
+}
+
+test "getOptionalEnumList - exists" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "key = no, Yes, mayBe";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+
+    const expected: []const MyEnum = &.{ .No, .Yes, .MayBe };
+    const list = parser.global().getOptionalEnumList(MyEnum, "key", ',').?;
+    defer parser.allocator.free(list);
+    try testing.expectEqualSlices(MyEnum, expected, list);
+}
+
+test "getOptionalEnumList - not exists" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+    const list = parser.global().getOptionalEnumList(MyEnum, "key", ',');
+    defer {
+        if (list) |l| {
+            defer parser.allocator.free(l);
+        }
+    }
+    try testing.expectEqual(null, list);
+}
+
+test "getOptionalEnumList - invalid entry" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const content = "key = yes, abc, no\nkey2 = 1.1, abc, 3.3\n";
+    var parser = try createParserWithContent(allocator, content);
+    defer parser.deinit();
+    const expected: []const MyEnum = &.{ .Yes, .No }; // Invalid entry is skipped
+    const list = parser.global().getOptionalEnumList(MyEnum, "key", ',');
+    defer {
+        if (list) |l| {
+            defer parser.allocator.free(l);
+        }
+    }
+    try testing.expect(list != null); //  parsing fails if null
+    try testing.expectEqualSlices(MyEnum, expected, list.?); // Returns null if any parsing fails
 }

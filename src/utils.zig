@@ -1,3 +1,4 @@
+const OutOfMemory = @import("./errors.zig").Error.OutOfMemory;
 const std = @import("std");
 /// Résout un chemin relatif ou absolu par rapport à un chemin de base.
 /// Si `base_path` est un fichier, le chemin de base est son répertoire.
@@ -27,16 +28,52 @@ pub fn resolvePath(
     // Combiner et normaliser les chemins.
     return std.fs.path.resolve(allocator, &.{ base_dir_path, target_path });
 }
-pub fn lower(
-    allocator: std.mem.Allocator,
+pub inline fn lower(
     value: []const u8,
 ) ![]const u8 {
-    var lower_value = std.ArrayList(u8).init(allocator);
-    defer lower_value.deinit();
-    for (value) |char| {
-        try lower_value.append(std.ascii.toLower(char));
+    if (value.len > 4096) {
+        return OutOfMemory;
     }
-    return lower_value.toOwnedSlice();
+    var dst: [4096]u8 = undefined;
+    for (value[0..value.len], 0..) |c, i| {
+        dst[i] = std.ascii.toLower(c);
+        //if (c >= 'A' and c <= 'Z') c + 32 else c;
+    }
+    return dst[0..value.len];
+}
+pub inline fn getEnum(comptime T: type, name: []const u8) ?T {
+    const info = @typeInfo(T);
+    switch (info) {
+        .@"enum" => |enum_info| {
+            inline for (enum_info.fields) |field| {
+                if (eq(lower(name) catch name, lower(field.name[0..]) catch field.name[0..]) catch false) {
+                    return @field(T, field.name);
+                }
+            }
+        },
+        else => {
+            return null;
+        },
+    }
+    return null;
+}
+pub inline fn eq(
+    a: []const u8,
+    b: []const u8,
+) !bool {
+    if (a.len > 4096 or b.len > 4096) {
+        return OutOfMemory;
+    }
+
+    if (a.len != b.len) {
+        return false;
+    }
+    for (a[0..a.len], 0..) |c, i| {
+        if (c != b[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 // **caractères spéciaux d’échappement** et leur représentation en **hexadécimal `0xXX` (u8)**
 // | Zig escape | Caractère | Hex (u8) | Description               |
@@ -56,10 +93,14 @@ pub fn lower(
 // | `\:`       | `:`       | `0x3A`   | Deux-points               |
 // | `\xHHHH`   | 0xHHHH    | `0xHHHH` | UTF-8 Code point          |
 
-pub fn escape(allocator: std.mem.Allocator, input: []const u8, i: usize) !struct {
+pub inline fn escape(input: []const u8) !struct {
     value: []const u8,
     skip: usize,
 } {
+    if (input.len > 6) {
+        return OutOfMemory;
+    }
+    const i: usize = 0;
     const b = input[i];
 
     return switch (b) {
@@ -77,6 +118,7 @@ pub fn escape(allocator: std.mem.Allocator, input: []const u8, i: usize) !struct
             if (i + 4 >= input.len) break :blk .{ .value = "", .skip = 2 };
 
             const hex = input[i + 1 .. i + 5];
+
             const cp = std.fmt.parseInt(u21, hex, 16) catch break :blk .{ .value = "", .skip = 2 };
 
             if (!std.unicode.utf8ValidCodepoint(cp))
@@ -85,10 +127,10 @@ pub fn escape(allocator: std.mem.Allocator, input: []const u8, i: usize) !struct
             // encode en UTF-8
             var buffer: [2]u8 = .{ 0, 0 };
             const length: usize = @intCast(try std.unicode.utf8Encode(cp, &buffer));
-            // Alloue dynamiquement pour renvoyer []const u8
-            const out = try allocator.alloc(u8, length);
-            std.mem.copyBackwards(u8, out, buffer[0..length]);
-            break :blk .{ .value = out, .skip = 6 };
+
+            const copy = try std.heap.page_allocator.alloc(u8, length);
+            std.mem.copyBackwards(u8, copy, buffer[0..length]);
+            break :blk .{ .value = copy, .skip = 6 };
         },
         else => .{ .value = input[i .. i + 1], .skip = 2 },
     };
@@ -111,7 +153,7 @@ pub fn unescapeChars(value: []const u8) ![]const u8 {
     var i: usize = 0;
     while (i < copy.len) {
         if (copy[i] == '\\' and i + 1 < copy.len) {
-            const escaped = try escape(allocator, copy, i + 1);
+            const escaped = try escape(copy[i + 1 .. if (copy.len > i + 6) i + 6 else copy.len]);
             try unescaped_value.appendSlice(escaped.value);
             i += escaped.skip; // Skip the escape character and the quote
         } else {
