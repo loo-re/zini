@@ -11,7 +11,7 @@
 * **Key-Value Pairs:** Extracts key-value pairs from sections (`key = value`). 
 * **Multiline Values:** Supports multiline values using escaped newlines within double quotes. 
 * **Character Escaping:** Handles escaped characters within values.
-* **Value type:** bool,[]const bool, i64, []const i64, f64, []const f64, []const u8, []const []const u8.
+* **Value type:** enum,[]const enum, bool,[]const bool, i64, []const i64, f64, []const f64, []const u8, []const []const u8.
 * **Read Support:** Read from File, and Strings.
 
 ## Installation
@@ -52,6 +52,10 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
+    const Answer = enum{
+      Yes,
+      No,
+    };
 
     var parser = try Parser.init(allocator);
     defer parser.deinit();
@@ -60,6 +64,7 @@ pub fn main() !void {
     const ini_text =
         \\[section]
         \\key = value
+        \\agree = yes
         \\multiline_key = "line1 \
         \\                 line2 \
         \\                 line3"
@@ -87,6 +92,8 @@ pub fn main() !void {
     if (parser.section("section")) |section| {
         const value = section.getString("key", "");
         std.debug.print("key: {s}\n", .{value});
+        const agree = section.getEnum(Answer,"agree", .No);
+        std.debug.print("agree: {s}\n", .{@tagName(agree)});
 
         const multiline_value = section.getString("multiline_key", "");
         std.debug.print("multiline_key: {s}\n", .{multiline_value});

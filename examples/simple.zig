@@ -6,6 +6,10 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
+    const Answer = enum {
+        Yes,
+        No,
+    };
 
     var parser = try Parser.init(allocator);
     defer parser.deinit();
@@ -14,8 +18,9 @@ pub fn main() !void {
     const ini_text =
         \\[section]
         \\key = value
+        \\agree = yes
         \\multiline_key = "line1 \
-        \\                 lin\x0065e2 \
+        \\                 line2 \
         \\                 line3"
         \\[section sub]
         \\key = sub section
@@ -41,6 +46,8 @@ pub fn main() !void {
     if (parser.section("section")) |section| {
         const value = section.getString("key", "");
         std.debug.print("key: {s}\n", .{value});
+        const agree = section.getEnum(Answer, "agree", .No);
+        std.debug.print("agree: {s}\n", .{@tagName(agree)});
 
         const multiline_value = section.getString("multiline_key", "");
         std.debug.print("multiline_key: {s}\n", .{multiline_value});
